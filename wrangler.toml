@@ -1,0 +1,7 @@
+name = "daddy-sticker-box"
+main = "src/index.ts"
+compatibility_date = "2026-11-13"
+
+[vars]
+GH_USER = "survival817"
+GH_REPO = "daddy-sticker-box"
