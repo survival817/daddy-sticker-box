@@ -35,7 +35,7 @@ curl -s http://127.0.0.1:8787/mcp \
 
 curl -s http://127.0.0.1:8787/mcp \
   -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pick_sticker","arguments":{"query":"得意"}}}'
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pick_sticker","arguments":{"query":"无语"}}}'
 
 curl -s http://127.0.0.1:8787/mcp \
   -H 'content-type: application/json' \

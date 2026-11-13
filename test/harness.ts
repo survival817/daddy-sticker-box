@@ -235,18 +235,27 @@ async function testTools(): Promise<void> {
 }
 
 async function testCatalog(): Promise<void> {
-  check("catalog size", stickers.length === 11 && STICKERS.length === 11);
+  check("catalog size", stickers.length === 10 && STICKERS.length === 10);
+  check(
+    "catalog ids",
+    stickers.map((sticker) => sticker.id).join(",") === "1,2,4,5,6,7,8,9,10,11",
+  );
+  check(
+    "catalog files",
+    stickers.map((sticker) => sticker.file).join(",") === "1.jpg,2.jpg,4.jpg,5.jpg,6.jpg,7.jpg,8.jpg,9.jpg,10.jpg,11.jpg",
+  );
+  check("sticker 3 removed", stickers.every((sticker) => sticker.id !== "3" && sticker.file !== "3.jpg"));
   check(
     "catalog tags",
     stickers.map((sticker) => sticker.tags.join(",")).join("|") ===
-      "待写|待写|待写|待写|待写|待写|待写|待写|待写|待写|待写",
+      "无语,嫌弃,冷眼|被拿捏,凶不起来,服了|摆烂,淡定,看透了|震惊,傻眼,懵了|吃瓜,看戏,躺平|委屈,撒娇,求抱抱|偷看,窥屏,等消息|伴侣嘎了,哀嚎,崩溃|累趴,放弃,不用再战斗了|舔屏,斯哈斯哈,馋了",
   );
 
   const all = await rpc("tools/call", { name: "list_stickers", arguments: {} });
   const allResult = resultOf(all.body);
   const structured = isRecord(allResult?.structuredContent) ? allResult.structuredContent : undefined;
   const rows = Array.isArray(structured?.stickers) ? structured.stickers : [];
-  check("list_stickers count", rows.length === 11, rows);
+  check("list_stickers count", rows.length === 10, rows);
   const text = Array.isArray(allResult?.content) && isRecord(allResult.content[0]) ? allResult.content[0].text : "";
   check("list_stickers text", typeof text === "string" && text.includes("全部贴纸"));
 
@@ -270,19 +279,19 @@ async function testCatalog(): Promise<void> {
     );
   });
 
-  const filtered = await rpc("tools/call", { name: "list_stickers", arguments: { tag: "待写" } });
+  const filtered = await rpc("tools/call", { name: "list_stickers", arguments: { tag: "无语" } });
   const filteredRows = stickersOf(resultOf(filtered.body));
-  check("filter tag", filteredRows.length === 11 && isRecord(filteredRows[0]) && filteredRows[0].id === "1", filteredRows);
+  check("filter tag", filteredRows.length === 1 && isRecord(filteredRows[0]) && filteredRows[0].id === "1", filteredRows);
 
   const none = await rpc("tools/call", { name: "list_stickers", arguments: { tag: "没有这个标签" } });
   check("filter miss", stickersOf(resultOf(none.body)).length === 0);
 
   const otherEnv: Env = { GH_USER: "octocat", GH_REPO: "widgets" };
-  const other = await rpc("tools/call", { name: "list_stickers", arguments: { tag: "待写" } }, 1, otherEnv);
+  const other = await rpc("tools/call", { name: "list_stickers", arguments: { tag: "舔屏" } }, 1, otherEnv);
   const otherRows = stickersOf(resultOf(other.body));
   check(
     "url uses GH_USER and GH_REPO",
-    otherRows.length === 11 && isRecord(otherRows[0]) && otherRows[0].url === expectedUrl(otherEnv, "1.jpg"),
+    otherRows.length === 1 && isRecord(otherRows[0]) && otherRows[0].url === expectedUrl(otherEnv, "11.jpg"),
     otherRows[0],
   );
 }
@@ -294,17 +303,40 @@ function stickersOf(result: Record<string, unknown> | undefined): unknown[] {
 
 async function testPick(): Promise<void> {
   const cases: Array<[string, string]> = [
-    ["表情 1 号", "1"],
-    ["表情 2 号", "2"],
-    ["表情 3 号", "3"],
-    ["表情 4 号", "4"],
-    ["表情 5 号", "5"],
-    ["表情 6 号", "6"],
-    ["表情 7 号", "7"],
-    ["表情 8 号", "8"],
-    ["表情 9 号", "9"],
-    ["表情 10 号", "10"],
-    ["表情 11 号", "11"],
+    ["无语", "1"],
+    ["嫌弃", "1"],
+    ["冷眼", "1"],
+    ["被拿捏", "2"],
+    ["凶不起来", "2"],
+    ["服了", "2"],
+    ["摆烂", "4"],
+    ["淡定", "4"],
+    ["看透了", "4"],
+    ["震惊", "5"],
+    ["傻眼", "5"],
+    ["懵了", "5"],
+    ["吃瓜", "6"],
+    ["看戏", "6"],
+    ["躺平", "6"],
+    ["委屈", "7"],
+    ["撒娇", "7"],
+    ["求抱抱", "7"],
+    ["偷看", "8"],
+    ["窥屏", "8"],
+    ["等消息", "8"],
+    ["伴侣嘎了", "9"],
+    ["哀嚎", "9"],
+    ["崩溃", "9"],
+    ["累趴", "10"],
+    ["放弃", "10"],
+    ["不用再战斗了", "10"],
+    ["舔屏", "11"],
+    ["斯哈斯哈", "11"],
+    ["馋了", "11"],
+    ["有点委屈", "7"],
+    ["想舔屏", "11"],
+    ["我不能哈气了", "2"],
+    ["可以不用再战斗了", "10"],
   ];
   for (const [query, id] of cases) {
     const response = await rpc("tools/call", { name: "pick_sticker", arguments: { query } });
@@ -313,13 +345,13 @@ async function testPick(): Promise<void> {
     check(`pick ${query}`, structured?.id === id && structured.matched === true, structured);
   }
 
-  const tagHit = scoreSticker(mustSticker("1"), "待写");
-  const meaningHit = scoreSticker(mustSticker("1"), "猫猫表情 1 号");
-  const partial = scoreSticker(mustSticker("5"), "猫猫表情 1 号");
-  check("tag outweighs a longer meaning hit", tagHit > meaningHit && meaningHit > partial && partial > 0, {
-    tagHit,
-    meaningHit,
-    partial,
+  const tagHit = scoreSticker(mustSticker("1"), "无语");
+  const meaningHit = scoreSticker(mustSticker("1"), "黑猫冷着脸");
+  const mentioned = scoreSticker(mustSticker("1"), "伴侣");
+  const tagContains = scoreSticker(mustSticker("9"), "伴侣");
+  check("tag outweighs a usage mention", tagContains > mentioned && mentioned > 0, {
+    tagContains,
+    mentioned,
   });
   check("tag weight beats longer meaning text", tagHit > meaningHit && meaningHit > 0, { tagHit, meaningHit });
   check(
@@ -327,7 +359,7 @@ async function testPick(): Promise<void> {
     STICKERS.every((sticker) => scoreSticker(sticker, "zzzzzz") === 0),
   );
 
-  const sample = await rpc("tools/call", { name: "pick_sticker", arguments: { query: "表情 1 号" } });
+  const sample = await rpc("tools/call", { name: "pick_sticker", arguments: { query: "无语" } });
   const sampleResult = resultOf(sample.body);
   const sampleStructured = isRecord(sampleResult?.structuredContent) ? sampleResult.structuredContent : undefined;
   const sampleText = Array.isArray(sampleResult?.content) && isRecord(sampleResult.content[0]) ? sampleResult.content[0].text : "";
@@ -340,7 +372,7 @@ async function testPick(): Promise<void> {
       typeof sampleStructured.usage_hint === "string",
   );
 
-  const tieQuery = "待写";
+  const tieQuery = "的时候";
   const tieScores = STICKERS.map((sticker) => scoreSticker(sticker, tieQuery));
   const tieBest = Math.max(...tieScores);
   const tied = STICKERS.filter((sticker) => scoreSticker(sticker, tieQuery) === tieBest).map((sticker) => sticker.id);
