@@ -15,7 +15,7 @@ interface ToolDef {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  _meta?: Record<string, string>;
+  _meta?: Record<string, unknown>;
 }
 
 const TOOLS: ToolDef[] = [
@@ -53,7 +53,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "show_sticker",
     description:
-      "当你已经决定要把某一张贴纸发给对方看时使用。传入 list_stickers 或 pick_sticker 给出的 id，返回 Markdown 图片和贴纸卡片。id 不存在就不要猜，先去列清单或重新挑。",
+      "当你已经决定要把某一张贴纸发给对方看时使用。传入 list_stickers 或 pick_sticker 给出的 id，由贴纸卡片展示图片，不要再把图片地址写成 Markdown 图片。id 不存在就不要猜，先去列清单或重新挑。",
     inputSchema: {
       type: "object",
       properties: {
@@ -173,6 +173,22 @@ function initializeResult(params: unknown): Record<string, unknown> {
   };
 }
 
+// ChatGPT Apps SDK: legacy `_meta["openai/widgetCSP"]` (snake_case) plus the
+// preferred `_meta.ui.csp` (camelCase). Images load through resource domains.
+// https://developers.openai.com/plugins/reference
+const WIDGET_RESOURCE_META: Record<string, unknown> = {
+  "openai/widgetCSP": {
+    connect_domains: [],
+    resource_domains: ["https://cdn.jsdelivr.net"],
+  },
+  ui: {
+    csp: {
+      connectDomains: [],
+      resourceDomains: ["https://cdn.jsdelivr.net"],
+    },
+  },
+};
+
 function resourceList(): Record<string, unknown>[] {
   return [
     {
@@ -180,6 +196,7 @@ function resourceList(): Record<string, unknown>[] {
       name: "sticker",
       description: "贴纸卡片。show_sticker 调用后，用圆角图片把这张贴纸画出来。",
       mimeType: WIDGET_MIME,
+      _meta: WIDGET_RESOURCE_META,
     },
   ];
 }
@@ -198,6 +215,7 @@ function readResource(id: JsonRpcId, params: unknown): RpcResponse {
         uri: WIDGET_URI,
         mimeType: WIDGET_MIME,
         text: WIDGET_HTML,
+        _meta: WIDGET_RESOURCE_META,
       },
     ],
   });
@@ -265,7 +283,12 @@ function runShow(env: Env, args: Record<string, unknown>): Record<string, unknow
   }
   const view = toView(env, sticker);
   return {
-    content: [{ type: "text", text: `![${view.meaning}](${view.url})\n${view.url}` }],
+    content: [
+      {
+        type: "text",
+        text: `贴纸 ${view.id}（${view.meaning}）。图片已由贴纸卡片展示，不要再嵌入 Markdown 图片。`,
+      },
+    ],
     structuredContent: {
       id: view.id,
       url: view.url,
