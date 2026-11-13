@@ -38,7 +38,7 @@ export function findSticker(id: string): Sticker | undefined {
 }
 
 // Tags outweigh meaning and usage_hint. Substrings count, so a Chinese
-// query like "有点吃醋" hits the tag "吃醋".
+// query like "有点委屈" hits the tag "委屈".
 export function scoreSticker(sticker: Sticker, query: string): number {
   const q = query.trim().toLowerCase();
   if (!q) return 0;
