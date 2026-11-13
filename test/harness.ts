@@ -210,6 +210,16 @@ async function testTools(): Promise<void> {
   }
 
   const show = byName.get("show_sticker");
+  const showDescription = show?.description;
+  check(
+    "show tells the model the widget has the image",
+    typeof showDescription === "string" &&
+      showDescription.includes("贴纸卡片") &&
+      showDescription.includes("不要") &&
+      showDescription.includes("Markdown 图片") &&
+      !showDescription.includes("返回 Markdown 图片"),
+    showDescription,
+  );
   const showMeta = isRecord(show?._meta) ? show._meta : undefined;
   check("tools/list outputTemplate", showMeta?.["openai/outputTemplate"] === "ui://widget/sticker.html", showMeta);
   check("tools/list invoking", showMeta?.["openai/toolInvocation/invoking"] === "找图中\u2026");
@@ -293,6 +303,34 @@ async function testCatalog(): Promise<void> {
     "url uses GH_USER and GH_REPO",
     otherRows.length === 1 && isRecord(otherRows[0]) && otherRows[0].url === expectedUrl(otherEnv, "11.jpg"),
     otherRows[0],
+  );
+}
+
+function assertWidgetCsp(name: string, meta: unknown): void {
+  if (!isRecord(meta)) {
+    check(`${name} csp meta`, false, meta);
+    return;
+  }
+  const openai = isRecord(meta["openai/widgetCSP"]) ? meta["openai/widgetCSP"] : undefined;
+  const domains = Array.isArray(openai?.resource_domains) ? openai.resource_domains : [];
+  check(
+    `${name} openai/widgetCSP`,
+    Array.isArray(openai?.connect_domains) &&
+      openai.connect_domains.length === 0 &&
+      domains.length === 1 &&
+      domains[0] === "https://cdn.jsdelivr.net",
+    openai,
+  );
+  const ui = isRecord(meta.ui) ? meta.ui : undefined;
+  const csp = isRecord(ui?.csp) ? ui.csp : undefined;
+  const resourceDomains = Array.isArray(csp?.resourceDomains) ? csp.resourceDomains : [];
+  check(
+    `${name} ui.csp.resourceDomains`,
+    Array.isArray(csp?.connectDomains) &&
+      csp.connectDomains.length === 0 &&
+      resourceDomains.length === 1 &&
+      resourceDomains[0] === "https://cdn.jsdelivr.net",
+    csp,
   );
 }
 
@@ -440,7 +478,12 @@ async function testShow(): Promise<void> {
   const response = await rpc("tools/call", { name: "show_sticker", arguments: { id: "1" } });
   const result = resultOf(response.body);
   const text = Array.isArray(result?.content) && isRecord(result.content[0]) ? result.content[0].text : "";
-  check("show markdown", text === `![${source.meaning}](${url})\n${url}`, text);
+  check(
+    "show text leaves the image to the widget",
+    text === `贴纸 ${source.id}（${source.meaning}）。图片已由贴纸卡片展示，不要再嵌入 Markdown 图片。`,
+    text,
+  );
+  check("show text is not a markdown image", typeof text === "string" && !text.includes("![") && !text.includes(url), text);
   const structured = isRecord(result?.structuredContent) ? result.structuredContent : undefined;
   check(
     "show structuredContent",
@@ -474,15 +517,20 @@ async function testResources(): Promise<void> {
   const resource = Array.isArray(resources) && isRecord(resources[0]) ? resources[0] : undefined;
   check("widget uri", resource?.uri === "ui://widget/sticker.html");
   check("widget mime", resource?.mimeType === "text/html+skybridge");
+  assertWidgetCsp("resources/list", resource?._meta);
 
   const read = await rpc("resources/read", { uri: "ui://widget/sticker.html" });
   const contents = resultOf(read.body)?.contents;
   const widget = Array.isArray(contents) && isRecord(contents[0]) ? contents[0] : undefined;
   const html = typeof widget?.text === "string" ? widget.text : "";
   check("widget read mime", widget?.mimeType === "text/html+skybridge");
+  assertWidgetCsp("resources/read", widget?._meta);
   check("widget reads toolOutput", html.includes("window.openai") && html.includes("toolOutput"));
   check("widget listens for set_globals", html.includes("openai:set_globals"));
+  check("widget renders on load", html.includes("render();"));
+  check("widget re-reads toolOutput from the event", html.includes("globals.toolOutput"));
   check("widget renders img", html.includes("createElement(\"img\")") || html.includes("createElement('img')"));
+  check("widget clears before a new img", html.includes('textContent = ""'));
   check("widget uses url and meaning", html.includes("data.url") && html.includes("data.meaning"));
   check("widget max width", html.includes("max-width: 240px"));
   check("widget rounded corners", html.includes("border-radius: 12px"));

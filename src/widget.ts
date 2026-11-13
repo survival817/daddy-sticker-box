@@ -15,15 +15,28 @@ export const WIDGET_HTML = `<!DOCTYPE html>
 <body>
 <div id="root"></div>
 <script>
-  function render() {
+  function render(event) {
     var data = (window.openai && window.openai.toolOutput) || {};
+    var globals = event && event.detail && event.detail.globals;
+    if (globals && globals.toolOutput && typeof globals.toolOutput === "object") {
+      data = globals.toolOutput;
+    }
     var root = document.getElementById("root");
     if (!root) return;
+    var url = typeof data.url === "string" ? data.url : "";
+    var meaning = typeof data.meaning === "string" ? data.meaning : "";
+    var current = root.querySelector("img");
+    if (url.length === 0) {
+      root.textContent = "";
+      return;
+    }
+    if (current && current.getAttribute("src") === url && current.alt === meaning && root.children.length === 1) {
+      return;
+    }
     root.textContent = "";
-    if (typeof data.url !== "string" || data.url.length === 0) return;
     var img = document.createElement("img");
     img.src = data.url;
-    img.alt = typeof data.meaning === "string" ? data.meaning : "";
+    img.alt = meaning;
     root.appendChild(img);
   }
   window.addEventListener("openai:set_globals", render);
